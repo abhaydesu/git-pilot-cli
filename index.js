@@ -6,17 +6,22 @@ import axios from "axios";
 import inquirer from "inquirer";
 import chalk from "chalk";
 
+import ora from "ora";
+
+const API_COMMIT_URL = "http://git-pilot-api.vercel.app/api/commit-message";
+const API_COMMAND_URL ="http://git-pilot-api.vercel.app/api/git-command"
+
+
 const getStagedDiff = async () => {
   try {
     const { stdout } = await execa("git", ["diff", "--staged"]);
     return stdout;
   } catch (error) {
-    console.error("Error getting git diff:", error.message);
+    console.error(chalk.red("Error getting git diff:"), error?.message || error);
     process.exit(1);
   }
 };
 
-const API_URL = "http://localhost:3001/api/commit-message";
 
 program
   .name("git-pilot")
@@ -30,31 +35,30 @@ program
     'The user\'s intent for the commit (e.g., "add a new feature")'
   )
   .action(async (intent) => {
-    console.log("Analyzing your staged changes...");
+    const spinner = ora('Analyzing your staged changes...').start();
 
     const diff = await getStagedDiff();
 
     if (!diff) {
-      console.log(
-        chalk.yellow(
-          "No staged changes found. Please stage your files with `git add`."
-        )
-      );
+      spinner.warn("No staged changes found. Please stage your files with `git add`.");
       process.exit(0);
     }
 
     try {
-      console.log("contacting the local AI assistant..");
+      spinner.text = 'Generating commit message...';
 
-      const response = await axios.post(API_URL, {
-        intent,
-        diff,
-      });
+      const response = await axios.post(API_COMMIT_URL,
+        { intent, diff},
+        { timeout: 30000 }
+    );
+
       const suggestedMessage = response.data.message;
+      
+      spinner.succeed();
 
-      console.log(chalk.green("\n--- Staged Diff ---"));
+      console.log(chalk.green("\n--- Suggested Message ---"));
       console.log(chalk.cyan(suggestedMessage));
-      console.log(chalk.green("-------------------\n"));
+      console.log(chalk.green("-------------------------\n"));
 
       const { confirm } = await inquirer.prompt([
         {
@@ -72,12 +76,12 @@ program
         console.log(chalk.red("Commit aborted by user."));
       }
     } catch (error) {
-      if (error.response) {
-        console.error(
-          chalk.red(
-            `API Error: ${error.response.status} - ${error.response.data.error}`
-          )
-        );
+        if (error.response) {
+            console.error(
+                chalk.red(
+                    `API Error: ${error.response.status} - ${error.response.data.error}`
+                )
+            );
       } else {
         console.error(
           chalk.red("An unexpected error occured: ", error.message)
@@ -88,7 +92,6 @@ program
     }
   });
 
-const API_COMMAND_URL = 'http://localhost:3001/api/git-command';
 
 program
   .command('run')
@@ -96,15 +99,24 @@ program
   .argument('<string>', 'The task you want to perform (e.g. "squash the last 3 commits')
   .action(async (request) => {
     try {
-        console.log("Fetching the right command..");
+        const spinner = ora('Fetching the right command...').start();
 
-        const response = await axios.post(API_COMMAND_URL, { request });
+        const response = await axios.post(
+            API_COMMAND_URL, 
+            { request },
+            { timeout: 30000 }
+        );
         const suggestedCommand = response.data.command;
 
         if (suggestedCommand.startsWith('Error:')) {
-            console.log(chalk.red(suggestedCommand));
+            spinner.fail(suggestedCommand);
             process.exit(1);
         }
+
+        spinner.succeed();
+
+        console.log(chalk.yellow.bold('\nWARNING: The suggested command will be executed in your shell.'));
+        console.log(chalk.yellow('Always review commands carefully before confirming.\n'));
 
         console.log(chalk.green('\n------ Suggested Command ------'));
         console.log(chalk.cyan(suggestedCommand));
@@ -127,9 +139,15 @@ program
         }
 
     } catch (error) {
-        console.error(chalk.red('An error occured: ', error.message));
-        process.exit(1);
-    }
+        if (error.response) { 
+            console.error(
+            chalk.red(`API Error: ${error.response.status} - ${error.response.data.error || 'No message'}`));
+        } else { 
+            console.error(chalk.red(`An unexpected error occurred: ${error.message}`));
+        }
+
+  process.exit(1);
+}
   })
 
 program.parse(process.argv);
