@@ -2,6 +2,7 @@
 
 import { program } from 'commander';
 import { execa } from 'execa';
+import axios from 'axios';
 
 const getStagedDiff = async () => {
   try {
@@ -12,6 +13,8 @@ const getStagedDiff = async () => {
     process.exit(1); 
   }
 };
+
+const API_URL = "http://localhost:3001/api/commit-message";
 
 program
   .name('git-pilot')
@@ -31,10 +34,24 @@ program
       process.exit(0);
     }
 
-    console.log('\n--- Staged Diff ---');
-    console.log(diff);
-    console.log('-------------------\n');
-    console.log(`User intent: "${intent}"`);
-  });
+    try {
+        console.log("contacting the local AI assistant..");
+
+        const resposnse = await axios.post(API_URL, {
+            intent, 
+            diff
+        });
+
+        console.log('\n--- Staged Diff ---');
+        console.log(resposnse.data.message);
+        console.log('-------------------\n');
+    } catch (error) {
+        console.log("Error connecting the local assistant", error.message);
+        console.log("Please ensure the API server is running..");
+        process.exit(1);
+    }
+    });
+
+
 
 program.parse(process.argv);
