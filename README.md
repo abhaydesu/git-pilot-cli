@@ -1,6 +1,7 @@
 <div align="center" display="inline">
   <img width="30" height="30" alt="logo" src="./public/logo-pilot.png" />
 </div>
+
 # Git Pilot 
 
 [![NPM Version](https://img.shields.io/npm/v/@abhaydesu/git-pilot)](https://www.npmjs.com/package/@abhaydesu/git-pilot)
