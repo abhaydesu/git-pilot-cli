@@ -2,58 +2,103 @@
   <img width="30" height="30" alt="logo" src="./public/logo-pilot.png" />
 </div>
 
-# Git Pilot 
+# Git Pilot API
 
-[![NPM Version](https://img.shields.io/npm/v/@abhaydesu/git-pilot)](https://www.npmjs.com/package/@abhaydesu/git-pilot)
+This is the backend API server that powers the <a href="https://www.npmjs.com/package/@abhaydesu/git-pilot">`git-pilot`</a> CLI tool. It handles the secure communication with AI models to generate Git commands, commit messages, undo actions, and branch names.
 
-An AI-powered assistant that lives in your command line to streamline your Git workflow.
+## ◼️ Purpose
 
+The primary role of this API is to act as a secure intermediary between the <a href="https://github.com/abhaydesu/git-pilot-cli">`git-pilot-cli` </a> and the AI service (Google Gemini). This architecture ensures that the AI API keys are never exposed on a user's local machine.
 
-## ◼️ The Problem
-Remembering complex commands like interactive rebase can be a pain. Writing well-formatted commit messages is a chore. Git is powerful, but its interface can sometimes get in the way of a fast workflow.
+## ◼️ Technology Stack
 
-**Git Pilot** solves this by acting as your intelligent copilot, translating your natural language intent into the exact commands and messages you need.
+* **Runtime:** Node.js
+* **Framework:** Express.js
+* **AI Service:** Google Gemini API
+* **Deployment:** Vercel
 
-## ◼️ Features
-* **Natural Language to Git Command:** Translate plain English requests like "squash the last 3 commits" into the precise Git command (`git rebase -i HEAD~3`).
-* **AI-Powered Commit Messages:** Analyzes your staged changes (`git diff`) and generates a perfect commit message following the Conventional Commits specification.
+## ◼️ API Endpoints
 
-* **Interactive & Safe:** Always asks for your confirmation before executing any command, ensuring you're always in control.
+The API exposes the following endpoints:
 
-## ◼️ Installation
-Make sure you have Node.js (v18+) and Git installed. Then, run the following command to install Git Pilot globally:
+### 1. Generate Commit Message
 
-```bash
-npm install -g @abhaydesu/git-pilot
-```
+* **Route:** `POST /api/pilot-commit`
+* **Description:** Analyzes a Git diff and a user's intent to generate a conventional commit message.
+* **Request Body (JSON):**
 
-### ◾ Usage
+  ```json
+  {
+    "intent": "string",
+    "diff": "string"
+  }
+  ```
+* **Success Response (200 - JSON):**
 
-#### **Running a Git Command**
-Run the run command with the task you want to perform in quotes.
+  ```json
+  {
+    "message": "string"
+  }
+  ```
 
-```Bash
+### 2. Generate Git Command
 
-git pilot run "create a new branch called feature/auth" 
-```
-The tool will suggest the correct Git command and ask for confirmation before executing it.
+* **Route:** `POST /api/pilot-run`
+* **Description:** Translates a user's natural language request into an executable, safe Git command.
+* **Request Body (JSON):**
 
+  ```json
+  {
+    "request": "string"
+  }
+  ```
+* **Success Response (200 - JSON):**
 
-#### **Generating a Commit Message**
-Stage your files (git add .).
+  ```json
+  {
+    "command": "string"
+  }
+  ```
 
-Run the commit command with your intent in quotes.
+### 3. Undo Last Action
 
-```Bash
+* **Route:** `POST /api/pilot-undo`
+* **Description:** Suggests a safe Git command to undo the most recent significant action (merge, rebase, commit).
+* **Request Body (JSON):**
 
-git pilot commit "add new user profile page"
-```
-The tool will suggest a message and ask for confirmation before committing.
+  ```json
+  {
+    "reflog": "string"
+  }
+  ```
+* **Success Response (200 - JSON):**
 
+  ```json
+  {
+    "command": "string",
+    "explanation": "string"
+  }
+  ```
 
+### 4. Generate Branch Name
 
-### ◾ How It Works
-Git Pilot is a CLI tool that communicates with a secure backend API. This API uses Google's Gemini models to understand your intent and analyze code, keeping your API keys safe and off your local machine.
+* **Route:** `POST /api/pilot-branch`
+* **Description:** Converts a natural language description into a conventional, kebab-case Git branch name.
+* **Request Body (JSON):**
 
-### ◾ License
-This project is licensed under the MIT License.
+  ```json
+  {
+    "description": "string"
+  }
+  ```
+* **Success Response (200 - JSON):**
+
+  ```json
+  {
+    "branchName": "string"
+  }
+  ```
+
+### ◾ Deployment
+
+This API is designed for and deployed on Vercel.
