@@ -33,8 +33,8 @@ program
   .command("commit")
   .description("Generate an AI-powered commit message.")
   .argument(
-    "<string>",
-    'The user\'s intent for the commit (e.g., "add a new feature")'
+    "[intent]",
+    'Optional: The user\'s intent for the commit (e.g., "add a new feature")'
   )
   .action(async (intent) => {
     const spinner = ora("Analyzing your staged changes...").start();
@@ -48,12 +48,25 @@ program
       process.exit(0);
     }
 
+    const MAX_PAYLOAD_SIZE = 4 * 1024 * 1024; 
+    const diffSize = Buffer.byteLength(diff, 'utf8');
+    let diffToSend = diff;
+
+    if (diffSize > MAX_PAYLOAD_SIZE) {
+      
+      const { stdout: diffSummary } = await execa("git", ["diff", "--staged", "--name-status"]);
+      
+      diffToSend = "The staged changes are too large to display the full diff. " +
+                   "Please generate a commit message based on the user's intent and this summary of changed files:\n\n" +
+                   diffSummary;
+    }
+
     try {
       spinner.text = "Generating commit message...";
 
       const response = await axios.post(
         API_COMMIT_URL,
-        { intent, diff },
+        { intent, diff: diffToSend },
         { timeout: 30000 }
       );
 

@@ -32,12 +32,25 @@ npm install -g @abhaydesu/git-pilot
 ### ◾ Usage
 
 #### *Generating a Commit Message*
-Stage your files (git add .), then run the commit command with your intent. You can accept, abort, or edit the AI's suggestion.
+Stage your files (git add .), then run git pilot commit. This command analyzes your staged changes and generates a conventional commit message.
+
+##### With an Intent
+Provide a brief description of your changes, and the AI will use it to write the commit message.
 
 ```Bash
 
 git pilot commit "add new user profile page"
 ```
+
+##### Without an Intent
+If you don't provide an intent, the AI will analyze the diff of your staged files and generate a message automatically.
+
+```Bash
+
+git pilot commit
+```
+After running, you can accept, edit, or abort the suggested commit.
+
 
 #### *Running a Git Command*
 Run the run command with the task you want to perform. The tool will suggest a command and ask for confirmation.
