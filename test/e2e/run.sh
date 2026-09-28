@@ -40,6 +40,12 @@ check "run: quoted message committed intact" test "$(git log -1 --format=%s)" = 
 t "run: chained command refused before prompt" - "" 'Refusing to run' run evil
 check "run: chained command did not execute" test ! -e PWNED
 t "run: non-git command refused"  -  ""     'Refusing to run' run notgit
+t "run: global option (-c) refused"   -  ""     'Refusing to run' run dashc
+t "run: rebase --exec refused"    -  ""     'Refusing to run' run rebasex
+check "run: rebase -x did not execute" test ! -e PWNED
+t "run: malformed API response reported" - "" 'Unexpected response' run badresp
+GIT_PILOT_API_URL=http://example.com \
+t "plain-http remote API refused" -  ""     'must use https' run "show status"
 t "run: API error reported"       -  ""     'API Error: 500' run boom
 
 t "undo: confirm"                 "Execute this undo command?" "$YES" 'successfully undone' undo

@@ -1,4 +1,4 @@
-import { callApi, MAX_DIFF_CHARS } from "../lib/api.js";
+import { callApi, fitsInRequest, requireString } from "../lib/api.js";
 import * as git from "../lib/git.js";
 import {
   spin,
@@ -23,11 +23,13 @@ export async function commitCommand(intent) {
       return;
     }
 
-    const diffToSend =
-      diff.length > MAX_DIFF_CHARS ? OVERSIZED_PREFIX + (await git.getStagedSummary()) : diff;
+    let payload = { intent, diff };
+    if (!fitsInRequest(payload, diff)) {
+      payload = { intent, diff: OVERSIZED_PREFIX + (await git.getStagedSummary()) };
+    }
 
     spinner.text = "Generating commit message...";
-    const { message } = await callApi("pilot-commit", { intent, diff: diffToSend });
+    const message = requireString(await callApi("pilot-commit", payload), "message");
     spinner.succeed();
 
     showBlock("Suggested Message", message);

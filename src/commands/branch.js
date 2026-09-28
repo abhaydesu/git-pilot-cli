@@ -1,5 +1,5 @@
 import chalk from "chalk";
-import { callApi } from "../lib/api.js";
+import { callApi, requireString } from "../lib/api.js";
 import * as git from "../lib/git.js";
 import {
   spin,
@@ -14,7 +14,7 @@ import {
 export async function branchCommand(description) {
   const spinner = spin("Generating a conventional branch name...");
   try {
-    const { branchName } = await callApi("pilot-branch", { description });
+    const branchName = requireString(await callApi("pilot-branch", { description }), "branchName");
     spinner.succeed();
 
     showBlock("Suggested Branch Name", branchName);

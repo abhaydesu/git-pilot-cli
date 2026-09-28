@@ -85,7 +85,16 @@ Check the installed version with `git pilot --version`, or see all commands with
 | --- | --- | --- |
 | `GIT_PILOT_API_URL` | `https://git-pilot-api.vercel.app` | Base URL of the backend API. Set it to use a self-hosted or local instance, e.g. `GIT_PILOT_API_URL=http://localhost:3000 git pilot run "show status"`. |
 
+`GIT_PILOT_API_URL` must use `https` (plain `http` is accepted only for `localhost`), because your staged diffs are sent to that server.
+
 Very large staged diffs (over ~800,000 characters) are not sent in full. Git Pilot sends the list of changed files instead and uses your intent to write the message.
+
+### ◾ Privacy and Security
+
+* `git pilot commit` sends your **staged diff** (and intent) to the Git Pilot API, which forwards it to Google's Gemini API. `run` sends your request text, `undo` your last 15 reflog lines, and `branch` your description. **Don't stage secrets or code you can't share** when using `commit`.
+* Suggested commands are validated locally before you are even asked to confirm: only `git` with a known subcommand (`add`, `commit`, `push`, ...), no shell operators, no leading global options (`git -c ...`), and no options that run other programs (`--upload-pack`, `--exec`, ...).
+* Commands run without a shell, and only after you confirm.
+* To report a vulnerability, please open a private security advisory on the GitHub repository rather than a public issue.
 
 ### ◾ Development
 

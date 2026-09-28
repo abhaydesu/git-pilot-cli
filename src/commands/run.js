@@ -1,12 +1,12 @@
 import chalk from "chalk";
-import { callApi } from "../lib/api.js";
+import { callApi, requireString } from "../lib/api.js";
 import { parseGitCommand, runGit } from "../lib/exec.js";
 import { spin, showBlock, confirm, success, aborted, handleError } from "../lib/ui.js";
 
 export async function runCommand(request) {
   const spinner = spin("Fetching the right command...");
   try {
-    const { command } = await callApi("pilot-run", { request });
+    const command = requireString(await callApi("pilot-run", { request }), "command");
 
     if (command.startsWith("Error:")) {
       spinner.fail(command);

@@ -8,11 +8,15 @@ const RUN_REPLIES = {
   quoted: 'git commit --allow-empty -m "two words"',
   evil: "git status; touch PWNED",
   notgit: "rm -rf important",
+  dashc: "git -c core.pager=evil log",
+  rebasex: "git rebase -x 'touch PWNED' HEAD~1",
+  badresp: null,
 };
 
 const handlers = {
   "pilot-run": ({ request }) => {
     if (request === "boom") return [500, { error: "Internal server error." }];
+    if (request === "badresp") return [200, { nothing: true }];
     return [200, { command: RUN_REPLIES[request] ?? "git status" }];
   },
   "pilot-undo": () => [
