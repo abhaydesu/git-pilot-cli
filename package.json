@@ -10,7 +10,7 @@
     "format": "prettier --write ."
   },
   "bin": {
-    "git-pilot": "./bin/git-pilot.js"
+    "git-pilot": "bin/git-pilot.js"
   },
   "type": "module",
   "keywords": [
