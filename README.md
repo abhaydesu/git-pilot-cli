@@ -20,10 +20,10 @@ Remembering complex commands like interactive rebase can be a pain. Writing well
 * **Natural Language to Git Command:** Translate plain English requests like "squash the last 3 commits" into the precise Git command. One simple `git pilot run <your_request>`
 * **Magic Undo:** Made a mistake? `git pilot undo` analyzes your recent history and suggests the exact command to reverse your last action.
 * **Intelligent Branching:** Describe your goal, and `git pilot branch` will create a clean, conventional branch name for you.
-* **Interactive & Safe:** Always asks for your confirmation before executing any command. You can also **edit** any AI suggestion to get it just right.
+* **Interactive & Safe:** Always asks for your confirmation before executing any command. You can also **edit** any AI suggestion to get it just right. Suggested commands must be plain `git ...` commands and are never run through a shell, so chained commands (`;`, `&&`, `|`, `$(...)`) and non-git programs are refused.
 
 ## Installation
-Make sure you have Node.js (v18+) and Git installed. Then, run the following command to install Git Pilot globally:
+Make sure you have Node.js (v20+) and Git installed. Then, run the following command to install Git Pilot globally:
 
 ```bash
 npm install -g @abhaydesu/git-pilot
@@ -76,6 +76,34 @@ If you've made a mistake (like a bad commit or merge), this command will analyze
 
 git pilot undo 
 ```
+
+Check the installed version with `git pilot --version`, or see all commands with `git pilot --help`.
+
+### ◾ Configuration
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `GIT_PILOT_API_URL` | `https://git-pilot-api.vercel.app` | Base URL of the backend API. Set it to use a self-hosted or local instance, e.g. `GIT_PILOT_API_URL=http://localhost:3000 git pilot run "show status"`. |
+
+Very large staged diffs (over ~800,000 characters) are not sent in full. Git Pilot sends the list of changed files instead and uses your intent to write the message.
+
+### ◾ Development
+
+```bash
+git clone https://github.com/abhaydesu/git-pilot-cli.git
+cd git-pilot-cli
+npm install
+node bin/git-pilot.js --help   # or `npm link` to get a global `git-pilot`
+```
+
+| Script | What it does |
+| --- | --- |
+| `npm test` | Unit tests (`node --test`) |
+| `npm run test:e2e` | Runs the real CLI in a PTY against a fake API and a scratch repo (needs `expect`; skipped if missing) |
+| `npm run lint` | ESLint |
+| `npm run format` | Prettier |
+
+Code layout: `bin/` (entry point), `src/commands/` (one file per command), `src/lib/` (`api`, `git`, `exec`, `ui`).
 
 ### ◾ How It Works
 Git Pilot is a CLI tool that communicates with a secure backend API. This API uses Google's Gemini models to understand your intent and analyze code, keeping your API keys safe and off your local machine.

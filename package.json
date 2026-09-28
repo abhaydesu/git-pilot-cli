@@ -1,26 +1,55 @@
 {
   "name": "@abhaydesu/git-pilot",
-  "version": "1.2.0",
-  "description": "",
-  "main": "index.js",
+  "version": "1.3.0",
+  "description": "AI-powered Git assistant: commit messages, natural-language git commands, undo suggestions and branch names.",
+  "main": "src/cli.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node --test \"test/*.test.js\"",
+    "test:e2e": "bash test/e2e/run.sh",
+    "lint": "eslint .",
+    "format": "prettier --write ."
   },
   "bin": {
-    "git-pilot": "./index.js"
+    "git-pilot": "./bin/git-pilot.js"
   },
   "type": "module",
-  "keywords": [],
+  "keywords": [
+    "git",
+    "cli",
+    "ai",
+    "gemini",
+    "commit",
+    "conventional-commits"
+  ],
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
   "preferGlobal": true,
   "dependencies": {
     "axios": "^1.12.2",
     "chalk": "^5.6.2",
     "commander": "^14.0.1",
-    "dotenv": "^17.2.2",
     "execa": "^9.6.0",
-    "inquirer": "^12.9.6",
-    "ora": "^9.0.0"
+    "inquirer": "^12.11.1",
+    "ora": "^9.4.1",
+    "shell-quote": "^1.10.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.11.0",
+    "globals": "^17.12.0",
+    "prettier": "^3.9.9"
+  },
+  "files": [
+    "bin",
+    "src",
+    "public",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/abhaydesu/git-pilot-cli.git"
   }
 }

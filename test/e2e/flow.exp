@@ -1,0 +1,17 @@
+# Drives one CLI invocation in a PTY.
+# Usage: expect flow.exp <cli> <cwd> <prompt|-> <answer> <expected-regex> <args...>
+# Set NO_TTY_SIZE=1 to leave the PTY at 0 columns (regression test for ora's redraw loop).
+log_user 0
+set timeout 20
+lassign $argv cli cwd prompt answer ok
+set cliargs [lrange $argv 5 end]
+cd $cwd
+if {![info exists ::env(NO_TTY_SIZE)]} { set stty_init "rows 40 cols 120" }
+spawn node $cli {*}$cliargs
+if {$prompt ne "-"} {
+  expect $prompt {} timeout { puts "no prompt: $prompt"; exit 1 } eof { puts "exited before prompt: $prompt"; exit 1 }
+  sleep 0.3
+  send $answer
+}
+expect -re $ok {} timeout { puts "timeout waiting for: $ok"; exit 1 } eof { puts "exited without: $ok"; exit 1 }
+exit 0
