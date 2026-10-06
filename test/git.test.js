@@ -10,6 +10,7 @@ import {
   getStagedDiff,
   getStagedSummary,
   getStagedFiles,
+  parseStagedFileList,
   commit,
 } from "../src/lib/git.js";
 
@@ -189,7 +190,12 @@ test("failing git commit hook stderr is terminal-sanitized while retaining reada
   }
 });
 
-test("getStagedFiles preserves filenames with leading/trailing whitespace and newlines via NUL-delimited output", async () => {
+test("parseStagedFileList preserves whitespace and embedded newlines", () => {
+  const names = ["  leading and trailing spaces.txt  ", "line1\nline2.txt", "tab\tname"];
+  assert.deepEqual(parseStagedFileList(`${names.join("\0")}\0`), names);
+});
+
+test("getStagedFiles preserves supported unusual filenames via NUL-delimited output", async () => {
   const tmpRepo = fs.mkdtempSync(path.join(os.tmpdir(), "gp-nul-files-"));
   const oldCwd = process.cwd();
 
@@ -199,7 +205,10 @@ test("getStagedFiles preserves filenames with leading/trailing whitespace and ne
     await execa("git", ["config", "user.name", "Test"]);
     await execa("git", ["config", "user.email", "test@example.com"]);
 
-    const spaceFile = "  leading and trailing spaces.txt  ";
+    // Windows normalizes trailing spaces in filesystem paths, so exercise leading
+    // spaces there and verify all opaque NUL-delimited cases in the parser test above.
+    const spaceFile =
+      process.platform === "win32" ? "  leading spaces.txt" : "  leading and trailing spaces.txt  ";
     const newlineFile = "line1\nline2.txt";
 
     fs.writeFileSync(path.join(tmpRepo, spaceFile), "spaces\n");

@@ -31,6 +31,7 @@ jobs:
           GIT_PILOT_REQUIRE_NATIVE_STORE_TEST: "1"
         run: |
           dbus-run-session -- sh -c '
+            set -e
             eval $(echo "" | gnome-keyring-daemon --unlock --components=secrets 2>/dev/null) || true
             export GNOME_KEYRING_CONTROL
             npm test

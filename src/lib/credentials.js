@@ -4,6 +4,87 @@ import process from "node:process";
 export const SERVICE_NAME = "git-pilot";
 const SAFE_IDENTIFIER = /^[a-zA-Z0-9._-]+$/;
 
+const WINDOWS_CREDENTIAL_MANAGER_SOURCE = `
+using System;
+using System.ComponentModel;
+using System.Runtime.InteropServices;
+
+public static class GitPilotCredentialManager {
+  [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+  private struct NativeCredential {
+    public UInt32 Flags;
+    public UInt32 Type;
+    public string TargetName;
+    public string Comment;
+    public System.Runtime.InteropServices.ComTypes.FILETIME LastWritten;
+    public UInt32 CredentialBlobSize;
+    public IntPtr CredentialBlob;
+    public UInt32 Persist;
+    public UInt32 AttributeCount;
+    public IntPtr Attributes;
+    public string TargetAlias;
+    public string UserName;
+  }
+
+  [DllImport("Advapi32.dll", EntryPoint = "CredWriteW", CharSet = CharSet.Unicode, SetLastError = true)]
+  private static extern bool CredWrite(ref NativeCredential credential, UInt32 flags);
+  [DllImport("Advapi32.dll", EntryPoint = "CredReadW", CharSet = CharSet.Unicode, SetLastError = true)]
+  private static extern bool CredRead(string target, UInt32 type, UInt32 flags, out IntPtr credential);
+  [DllImport("Advapi32.dll", EntryPoint = "CredDeleteW", CharSet = CharSet.Unicode, SetLastError = true)]
+  private static extern bool CredDelete(string target, UInt32 type, UInt32 flags);
+  [DllImport("Advapi32.dll", SetLastError = false)]
+  private static extern void CredFree(IntPtr credential);
+
+  public static bool Probe() { return true; }
+
+  public static void Write(string target, string username, byte[] secret) {
+    IntPtr blob = Marshal.AllocHGlobal(secret.Length);
+    try {
+      Marshal.Copy(secret, 0, blob, secret.Length);
+      var credential = new NativeCredential {
+        Type = 1, TargetName = target, CredentialBlobSize = (UInt32)secret.Length,
+        CredentialBlob = blob, Persist = 2, UserName = username
+      };
+      if (!CredWrite(ref credential, 0)) throw new Win32Exception(Marshal.GetLastWin32Error());
+    } finally { Marshal.FreeHGlobal(blob); }
+  }
+
+  public static byte[] Read(string target, out int error) {
+    IntPtr pointer;
+    if (!CredRead(target, 1, 0, out pointer)) { error = Marshal.GetLastWin32Error(); return null; }
+    try {
+      var credential = (NativeCredential)Marshal.PtrToStructure(pointer, typeof(NativeCredential));
+      var secret = new byte[credential.CredentialBlobSize];
+      if (secret.Length > 0) Marshal.Copy(credential.CredentialBlob, secret, 0, secret.Length);
+      error = 0;
+      return secret;
+    } finally { CredFree(pointer); }
+  }
+
+  public static bool Delete(string target, out int error) {
+    if (CredDelete(target, 1, 0)) { error = 0; return true; }
+    error = Marshal.GetLastWin32Error();
+    return false;
+  }
+}
+`;
+
+function windowsCredentialScript(action, service, account) {
+  const target = `${service}/${account}`;
+  const prelude = `$ErrorActionPreference = 'Stop';\nAdd-Type -TypeDefinition @'\n${WINDOWS_CREDENTIAL_MANAGER_SOURCE}\n'@;\n`;
+
+  if (action === "probe") {
+    return `${prelude}[GitPilotCredentialManager]::Probe() | Out-Null; 'OK'`;
+  }
+  if (action === "get") {
+    return `${prelude}$errorCode = 0; $secret = [GitPilotCredentialManager]::Read('${target}', [ref]$errorCode); if ($null -eq $secret) { if ($errorCode -eq 1168) { exit 44 }; throw [ComponentModel.Win32Exception]::new($errorCode) }; [Console]::Out.Write([Convert]::ToBase64String($secret))`;
+  }
+  if (action === "set") {
+    return `${prelude}$encoded = [Console]::In.ReadToEnd().Trim(); $secret = [Convert]::FromBase64String($encoded); [GitPilotCredentialManager]::Write('${target}', '${account}', $secret)`;
+  }
+  return `${prelude}$errorCode = 0; if ([GitPilotCredentialManager]::Delete('${target}', [ref]$errorCode)) { exit 0 }; if ($errorCode -eq 1168) { exit 44 }; throw [ComponentModel.Win32Exception]::new($errorCode)`;
+}
+
 export class CredentialStoreUnavailableError extends Error {
   constructor(message, platform) {
     super(message);
@@ -119,13 +200,13 @@ export class OsCredentialStore {
           "-NoProfile",
           "-NonInteractive",
           "-Command",
-          "[Windows.Security.Credentials.PasswordVault,Windows.Security.Credentials,ContentType=WindowsRuntime] | Out-Null; 'OK'",
+          windowsCredentialScript("probe", "git-pilot", "availability"),
         ]);
         return { available: true };
       } catch {
         return {
           available: false,
-          reason: "Windows Credential Manager / PasswordVault is unavailable.",
+          reason: "Windows Credential Manager is unavailable.",
         };
       }
     }
@@ -192,28 +273,15 @@ export class OsCredentialStore {
     }
 
     if (this.platform === "win32") {
-      const script = `
-        $service = '${service}';
-        $account = '${account}';
-        try {
-          $vault = New-Object Windows.Security.Credentials.PasswordVault;
-          $cred = $vault.Retrieve($service, $account);
-          $cred.RetrievePassword();
-          [Console]::Write($cred.Password);
-        } catch {
-          if ($_.Exception.Message -match 'Element not found') { exit 44; }
-          [Console]::Error.Write($_.Exception.Message);
-          exit 1;
-        }
-      `;
       try {
         const { stdout } = await this.execFn("powershell.exe", [
           "-NoProfile",
           "-NonInteractive",
           "-Command",
-          script,
+          windowsCredentialScript("get", service, account),
         ]);
-        return stdout.trim() || null;
+        const encoded = stdout.trim();
+        return encoded ? Buffer.from(encoded, "base64").toString("utf8") : null;
       } catch (err) {
         if (err.exitCode === 44) return null;
         throw new CredentialStoreUnavailableError(
@@ -261,17 +329,16 @@ export class OsCredentialStore {
       }
 
       if (this.platform === "win32") {
-        const script = `
-          $service = '${service}';
-          $account = '${account}';
-          $pass = [Console]::In.ReadToEnd();
-          $vault = New-Object Windows.Security.Credentials.PasswordVault;
-          $cred = New-Object Windows.Security.Credentials.PasswordCredential($service, $account, $pass);
-          $vault.Add($cred);
-        `;
-        await this.execFn("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script], {
-          input: password,
-        });
+        await this.execFn(
+          "powershell.exe",
+          [
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            windowsCredentialScript("set", service, account),
+          ],
+          { input: Buffer.from(password, "utf8").toString("base64") }
+        );
       }
     } catch (err) {
       const sanitized = redactSecretText(
@@ -326,22 +393,13 @@ export class OsCredentialStore {
     }
 
     if (this.platform === "win32") {
-      const script = `
-        $service = '${service}';
-        $account = '${account}';
-        try {
-          $vault = New-Object Windows.Security.Credentials.PasswordVault;
-          $cred = $vault.Retrieve($service, $account);
-          $vault.Remove($cred);
-          exit 0;
-        } catch {
-          if ($_.Exception.Message -match 'Element not found') { exit 44; }
-          [Console]::Error.Write($_.Exception.Message);
-          exit 1;
-        }
-      `;
       try {
-        await this.execFn("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script]);
+        await this.execFn("powershell.exe", [
+          "-NoProfile",
+          "-NonInteractive",
+          "-Command",
+          windowsCredentialScript("delete", service, account),
+        ]);
         return true;
       } catch (err) {
         if (err.exitCode === 44) return false;

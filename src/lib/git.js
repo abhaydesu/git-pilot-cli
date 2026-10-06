@@ -58,6 +58,10 @@ export const getStagedDiff = () => git(["diff", "--staged", "--no-ext-diff", "--
 export const getStagedSummary = () =>
   git(["diff", "--staged", "--name-status", "--no-ext-diff", "--no-textconv"]);
 
+export function parseStagedFileList(output) {
+  return output.split("\0").filter((file) => file.length > 0);
+}
+
 /**
  * Returns staged file paths using NUL-delimited (`-z`) output so filenames
  * containing leading/trailing spaces, special characters, or newlines remain intact.
@@ -67,7 +71,7 @@ export async function getStagedFiles() {
     ["diff", "--staged", "--name-only", "-z", "--no-ext-diff", "--no-textconv"],
     { stripFinalNewline: false }
   );
-  return output.split("\0").filter((s) => s.length > 0);
+  return parseStagedFileList(output);
 }
 
 /**

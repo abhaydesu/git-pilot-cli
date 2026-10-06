@@ -141,6 +141,32 @@ test("Linux and Windows OsCredentialStore failure modes produce CredentialStoreU
   );
 });
 
+test("Windows Credential Manager uses native generic credentials and keeps the key out of argv", async () => {
+  const secret = "a-private-api-key-not-for-argv";
+  const calls = [];
+  const winStore = new OsCredentialStore({
+    platform: "win32",
+    execFn: async (cmd, args, options = {}) => {
+      calls.push({ cmd, args, options });
+      const script = args.at(-1);
+      if (script.includes("::Probe()")) return { stdout: "OK" };
+      if (script.includes("::Read(")) {
+        return { stdout: Buffer.from(secret, "utf8").toString("base64") };
+      }
+      return { stdout: "" };
+    },
+  });
+
+  assert.deepEqual(await winStore.isAvailable(), { available: true });
+  await winStore.setPassword("git-pilot", "gemini", secret);
+  const setCall = calls.find(({ args }) => args.at(-1).includes("::Write("));
+  assert.ok(setCall);
+  assert.equal(setCall.options.input, Buffer.from(secret, "utf8").toString("base64"));
+  assert.equal(setCall.args.join(" ").includes(secret), false);
+  assert.equal(await winStore.getPassword("git-pilot", "gemini"), secret);
+  assert.equal(await winStore.deletePassword("git-pilot", "gemini"), true);
+});
+
 test("getApiKey, getEnvApiKey, and getStoredApiKey distinguish environment and stored keys", async () => {
   const store = new MemoryCredentialStore();
   await store.setPassword(SERVICE_NAME, "gemini", "stored-key-12345");

@@ -4,7 +4,7 @@
   "description": "AI-powered Git assistant: commit messages, natural-language git commands, undo suggestions and branch names.",
   "main": "src/cli.js",
   "scripts": {
-    "test": "node --test \"test/*.test.js\"",
+    "test": "node scripts/run-tests.js",
     "test:e2e": "bash test/e2e/run.sh",
     "lint": "eslint .",
     "format": "prettier --write ."
@@ -31,7 +31,7 @@
     "execa": "^9.6.0",
     "inquirer": "^12.11.1",
     "ora": "^9.4.1",
-    "shell-quote": "^1.10.0"
+    "shell-quote": "^1.12.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
