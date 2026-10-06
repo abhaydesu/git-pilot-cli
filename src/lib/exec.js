@@ -1,5 +1,6 @@
 import { parse } from "shell-quote";
 import { execa } from "execa";
+import { getSanitizedGitEnv } from "./git.js";
 
 export class UnsafeCommandError extends Error {}
 
@@ -32,7 +33,8 @@ const ALLOWED_SUBCOMMANDS = new Set([
 ]);
 
 // Options that make git run another program or write to an arbitrary path.
-const FORBIDDEN_OPTION = /^--(upload-pack|receive-pack|exec|exec-path|output)(=|$)/;
+const FORBIDDEN_OPTION =
+  /^--(upload-pack|receive-pack|exec|exec-path|output|ext-diff|textconv)(=|$)/;
 
 function assertSafeArgs(args) {
   const [subcommand, ...rest] = args;
@@ -81,5 +83,10 @@ export function parseGitCommand(command) {
   return args;
 }
 
-/** Runs `git <args>` with the terminal attached. */
-export const runGit = (args) => execa("git", args, { stdio: "inherit" });
+/** Runs `git <args>` with the terminal attached and provider secrets stripped from env. */
+export const runGit = (args) =>
+  execa("git", args, {
+    stdio: "inherit",
+    env: getSanitizedGitEnv(),
+    extendEnv: false,
+  });

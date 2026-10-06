@@ -1,4 +1,10 @@
 #!/usr/bin/env node
-import { buildProgram } from "../src/cli.js";
+import { buildProgram, normalizeArgs } from "../src/cli.js";
+import { handleError } from "../src/lib/ui.js";
 
-await buildProgram().parseAsync(process.argv);
+try {
+  const normalized = normalizeArgs(process.argv);
+  await buildProgram().parseAsync(normalized);
+} catch (err) {
+  handleError(err);
+}

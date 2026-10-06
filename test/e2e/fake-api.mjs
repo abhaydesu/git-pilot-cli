@@ -1,7 +1,7 @@
-// Minimal stand-in for git-pilot-api, so e2e tests need no network or Gemini key.
-// Usage: node fake-api.mjs <port-file>   (writes the chosen port to <port-file>)
-import http from "node:http";
-import fs from "node:fs";
+// In-process mock HTTP client for Gemini API so PTY e2e tests need no external network,
+// no real Gemini key, no local TCP socket bind (EPERM-safe), and no env URL override in production code.
+// Loaded in e2e tests via: node --import ./test/e2e/fake-api.mjs bin/git-pilot.js ...
+import { setDefaultHttpClientForTesting } from "../../src/lib/provider.js";
 
 const RUN_REPLIES = {
   "show status": "git status",
@@ -13,33 +13,55 @@ const RUN_REPLIES = {
   badresp: null,
 };
 
-const handlers = {
-  "pilot-run": ({ request }) => {
-    if (request === "boom") return [500, { error: "Internal server error." }];
-    if (request === "badresp") return [200, { nothing: true }];
-    return [200, { command: RUN_REPLIES[request] ?? "git status" }];
+function extractTag(text, tag) {
+  const m = new RegExp(`<${tag}>\\s*([\\s\\S]*?)\\s*<\\/${tag}>`, "i").exec(text);
+  return m ? m[1].trim() : "";
+}
+
+function handleGeminiRequest(url, body, options = {}) {
+  const headers = options.headers || {};
+  const apiKey = headers["x-goog-api-key"] || headers["X-Goog-Api-Key"];
+  if (!apiKey) {
+    return [401, { error: { message: "API_KEY_INVALID: missing header" } }];
+  }
+
+  const prompt = body?.contents?.[0]?.parts?.[0]?.text || "";
+
+  if (prompt === "ping") {
+    return [200, { candidates: [{ content: { parts: [{ text: "pong" }] } }] }];
+  }
+
+  if (prompt.includes("Conventional Commits specification")) {
+    return [200, { candidates: [{ content: { parts: [{ text: "feat: add b" }] } }] }];
+  }
+
+  if (prompt.includes("Translate the user's request")) {
+    const request = extractTag(prompt, "request");
+    if (request === "boom") {
+      return [500, { error: { message: "Internal Gemini server error." } }];
+    }
+    if (request === "badresp") {
+      return [200, { candidates: [] }];
+    }
+    const reply = RUN_REPLIES[request] ?? "git status";
+    return [200, { candidates: [{ content: { parts: [{ text: reply }] } }] }];
+  }
+
+  if (prompt.includes("conventional Git branch names")) {
+    return [200, { candidates: [{ content: { parts: [{ text: "feat/test-branch" }] } }] }];
+  }
+
+  return [200, { candidates: [{ content: { parts: [{ text: "git status" }] } }] }];
+}
+
+setDefaultHttpClientForTesting({
+  async post(url, body, options) {
+    const [status, data] = handleGeminiRequest(url, body, options);
+    if (status >= 400) {
+      const err = new Error(`Request failed with status code ${status}`);
+      err.response = { status, data };
+      throw err;
+    }
+    return { status, data };
   },
-  "pilot-undo": () => [
-    200,
-    { command: "git reset --soft HEAD~1", explanation: "Undoes the last commit." },
-  ],
-  "pilot-branch": () => [200, { branchName: "feat/Test Branch" }],
-  "pilot-commit": () => [200, { message: "feat: add b" }],
-};
-
-const server = http.createServer((req, res) => {
-  let raw = "";
-  req.on("data", (chunk) => (raw += chunk));
-  req.on("end", () => {
-    const handler = handlers[req.url.replace(/^\/api\//, "")];
-    const [status, body] = handler
-      ? handler(JSON.parse(raw || "{}"))
-      : [404, { error: "Not found." }];
-    res.writeHead(status, { "content-type": "application/json" });
-    res.end(JSON.stringify(body));
-  });
 });
-
-server.listen(0, "127.0.0.1", () =>
-  fs.writeFileSync(process.argv[2], String(server.address().port))
-);
