@@ -1,6 +1,6 @@
 {
   "name": "@abhaydesu/git-pilot",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "AI-powered Git assistant: commit messages, natural-language git commands, undo suggestions and branch names.",
   "main": "src/cli.js",
   "scripts": {
